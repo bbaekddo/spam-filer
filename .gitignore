@@ -1,0 +1,4 @@
+/node_modules/
+
+# Webstrom 설정
+./.idea
