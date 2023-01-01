@@ -1,6 +1,8 @@
 const express = require('express');
 const router = express.Router();
 const axios = require('axios');
+const chainConfig = {maxRedirects: 50};
+const redirectionChain = require('redirect-chain')(chainConfig);
 
 // URL 추출 정규표현식
 const urlPattern = /(https?):\/\/([^ ]*)/;
@@ -32,6 +34,16 @@ const isSpam = async (content, spamLinkDomains, redirectionDepth) => {
     // 최종 URL에서 도메인 분리
     let finalHostname = new URL(finalDomain).hostname;
     
+    // 리다이렉션 도메인 확인
+    const domainChains = await redirectionChain.domains(url);
+    for (let key in domainChains) {
+        for (let domain of spamLinkDomains) {
+            if (domainChains[key] === domain && (Number(key) + 1) === redirectionDepth) {
+                return true;
+            }
+        }
+    }
+    
     // a tag내 링크 추출
     let hyperlink = '';
     if (data) {
@@ -40,10 +52,8 @@ const isSpam = async (content, spamLinkDomains, redirectionDepth) => {
     
     // 도메인별 검사
     let checkDomain = false;
-    for (let spamDomain of spamLinkDomains) {
-        if (finalHostname === spamDomain && redirectionCount === redirectionDepth) {
-            checkDomain = true;
-        } else if (hyperlink === spamDomain && redirectionCount === redirectionDepth) {
+    for (let domain of spamLinkDomains) {
+        if (hyperlink === domain && redirectionCount === redirectionDepth) {
             checkDomain = true;
         }
     }
@@ -53,7 +63,7 @@ const isSpam = async (content, spamLinkDomains, redirectionDepth) => {
 
 /* Spam Filter Test */
 router.get('/', async (req, res, next) => {
-    const isSpamAnswer = await isSpam('spam spam http://localhost:3000/spam1', ['localHHHOST', 'www.naver.com'], 1);
+    const isSpamAnswer = await isSpam('spam spam http://localhost:3000/spam1', ['localhost:3000', 'www.naver.com'], 1);
     
     res.render('index', {answer: isSpamAnswer});
 });
